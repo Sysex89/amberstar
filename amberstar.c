@@ -1,6 +1,10 @@
 //reimplementation of the engine in c
 
 #include <SDL3/SDL_endian.h>
+#include <SDL3/SDL_filesystem.h>
+#include <SDL3/SDL_iostream.h>
+#include <SDL3/SDL_stdinc.h>
+#include <SDL3/SDL_storage.h>
 #include <stdint.h>
 #include <SDL3/SDL.h>
 
@@ -400,10 +404,68 @@ bool blot_masked_block(uint16_t x, uint16_t y, uint16_t width_cols, uint16_t hei
 }
 
 
-const char *amberfile_path = "/AMBRFILE/";
-//SDL_Swap16BE(x);// we should use this when reading
+/* File layer: see doc/file-open-implementation-strategy.md */
+const char *data_root = "data";
+
 typedef struct amberfile_header {
     uint8_t magic[4];   /* "AMBR" or "AMPC" */
-    uint16_t sfilenm;
-    uint16_t padding;
+    uint16_t num_subfiles;  /* big-endian; use SDL_Swap16BE when reading */
 } t_amberfile_header;
+
+char *data_path(const char *data_root, const char *filename)
+{
+    static char buf[512];
+    (void)SDL_snprintf(buf, sizeof(buf), "%s/%s", data_root, filename);
+    return buf;
+}
+/* Result of Load_file or Load_subfile: caller owns ptr (free when done). len is byte count. */
+typedef struct file_res {
+    void *ptr;
+    uint32_t len;
+} t_file_res;
+
+/* Load entire flat file (e.g. PARTYDAT.SAV, DICTIONA.ENG). Returns { NULL, 0 } on error. */
+t_file_res Load_file(const char *data_root, const char *filename)
+{
+    t_file_res out = { NULL, 0 };
+    char *path = data_path(data_root, filename);
+    SDL_IOStream *io = SDL_IOFromFile(path, "rb");
+    if (!io)
+        return out;
+    Sint64 size = SDL_GetIOSize(io);
+    if (size <= 0 || size > (Sint64)(256 * 1024 * 1024)) {  /* cap 256 MiB */
+        SDL_CloseIO(io);
+        return out;
+    }
+    void *ptr = SDL_malloc((size_t)size);
+    if (!ptr) {
+        SDL_CloseIO(io);
+        return out;
+    }
+    if (SDL_ReadIO(io, ptr, (size_t)size) != (size_t)size) {
+        SDL_free(ptr);
+        SDL_CloseIO(io);
+        return out;
+    }
+    SDL_CloseIO(io);
+    out.ptr = ptr;
+    out.len = (uint32_t)size;
+    return out;
+}
+
+/* Result type same as file_res; separate type only for clarity. */
+typedef t_file_res t_subfile_res;
+
+/* Load one subfile from an Amberfile (.AMB). subfile_idx is 0-based. AMBR only for now. */
+t_subfile_res Load_subfile(const char *data_root, const char *filename, int subfile_idx)
+{
+    char *path = data_path(data_root, filename);
+    (void)subfile_idx;
+    (void)path;
+    SDL_IOFromFile(path, "rb");
+    return (t_subfile_res){ NULL, 0 };  /* TODO: open, read 6-byte header, lengths[], seek, read block */
+}
+
+int main(){
+    return 0;
+}
