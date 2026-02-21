@@ -9,10 +9,10 @@
 #define TERM_GRN   "\033[32m"
 #define TERM_RST   "\033[0m"
 
-/** Prints PASS (green) or FAIL (red) with reason. Use for normal terminal tests. */
+/** Prints PASS (green) or FAIL (red) with file:line and reason. Use for normal terminal tests. */
 #define TEST(cond, reason) do { \
     if (cond) { \
-        fprintf(stderr, TERM_GRN "PASS" TERM_RST " %s:%d\n", __FILE__, __LINE__); \
+        fprintf(stderr, TERM_GRN "PASS" TERM_RST " %s:%d: " reason "\n", __FILE__, __LINE__); \
     } else { \
         fprintf(stderr, TERM_RED "FAIL" TERM_RST " %s:%d: " reason "\n", __FILE__, __LINE__); \
     } \
@@ -21,7 +21,7 @@
 /** Same as TEST but no ANSI codes; use for gfx/headless tests where terminal colors are unavailable. */
 #define TEST_GFX(cond, reason) do { \
     if (cond) { \
-        fprintf(stderr, "PASS %s:%d\n", __FILE__, __LINE__); \
+        fprintf(stderr, "PASS %s:%d: " reason "\n", __FILE__, __LINE__); \
     } else { \
         fprintf(stderr, "FAIL %s:%d: " reason "\n", __FILE__, __LINE__); \
     } \
@@ -29,5 +29,5 @@
 
 void hexdump_amb_header(const char *filename, size_t header_len);
 int test_open_amb(void);
-
+void test_memory(void);
 #endif

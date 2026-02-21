@@ -79,9 +79,6 @@ int main(void)
     SDL_ShowWindow(window);
     SDL_Delay(1000);
     SDL_Quit();
-    int res = test_open_amb();
-    printf("%d %s\n", res, amb_error_str(res));
-    hexdump_amb_header("PICS80.AMB", 64);
-    test_open_amb();  /* 6-byte header + first 14 subfile lengths = 62 bytes */
-    return res;
+    test_memory();
+    return 0;
 }
