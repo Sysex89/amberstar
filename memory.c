@@ -5,6 +5,7 @@
  * Compacting / cache can be added later.
  */
 
+#include "memory.h"
 #include <SDL3/SDL_stdinc.h>
 #include <stddef.h>
 #include <stdint.h>
