@@ -39,16 +39,19 @@ int test_open_amb(void)
     const char *ampc_file = "PICS80.AMB";
 
     t_file_res r = Load_file(data_root, ambr_file);
+    TEST(r.ptr && r.len >= 6, "load AMBR file");
     if (!r.ptr || r.len < 6) {
         if (r.ptr)
             SDL_free(r.ptr);
         return AMB_ERR_OPEN_OR_SIZE;
     }
     const uint8_t *p = (const uint8_t *)r.ptr;
+    TEST(amb_is_ambr(p) || amb_is_ampc(p), "AMBR/AMPC magic");
     if (!amb_is_ambr(p) && !amb_is_ampc(p)) {
         SDL_free(r.ptr);
         return AMB_ERR_BAD_MAGIC;
     }
+    TEST(amb_is_ambr(p), "file is AMBR");
     if (!amb_is_ambr(p)) {
         SDL_free(r.ptr);
         return AMB_ERR_NOT_AMBR;
@@ -58,12 +61,14 @@ int test_open_amb(void)
     SDL_free(r.ptr);
 
     r = Load_file(data_root, ampc_file);
+    TEST(r.ptr && r.len >= 6, "load AMPC file");
     if (!r.ptr || r.len < 6) {
         if (r.ptr)
             SDL_free(r.ptr);
         return AMB_ERR_OPEN_AMPC;
     }
     p = (const uint8_t *)r.ptr;
+    TEST(amb_is_ampc(p), "file is AMPC");
     if (!amb_is_ampc(p)) {
         SDL_free(r.ptr);
         return AMB_ERR_NOT_AMPC;
@@ -72,7 +77,13 @@ int test_open_amb(void)
     return AMB_OK;
 }
 
-void test_memory(){}
-void test_data_loading(){}
-void test_gfx(){} // would need init
+void test_memory(void) {}
+
+void test_data_loading(void) {}
+
+void test_gfx(void)
+{
+    /* Use TEST_GFX here: no terminal colors (e.g. headless or after gfx init). */
+    TEST_GFX(1, "placeholder");
+}
 
