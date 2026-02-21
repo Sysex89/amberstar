@@ -7,6 +7,7 @@
 #include <SDL3/SDL_storage.h>
 #include <stdint.h>
 #include <SDL3/SDL.h>
+#include <stdio.h>
 
 typedef struct XEntry {
     uint16_t rsa;
@@ -412,12 +413,45 @@ typedef struct amberfile_header {
     uint16_t num_subfiles;  /* big-endian; use SDL_Swap16BE when reading */
 } t_amberfile_header;
 
+/* After reading first 4 bytes: use to detect format. */
+#define AMB_MAGIC_AMBR 0x414D4252u  /* "AMBR" big-endian */
+#define AMB_MAGIC_AMPC 0x414D5043u  /* "AMPC" big-endian */
+static inline int amb_is_ambr(const uint8_t *magic4) {
+    return magic4[0] == 'A' && magic4[1] == 'M' && magic4[2] == 'B' && magic4[3] == 'R';
+}
+static inline int amb_is_ampc(const uint8_t *magic4) {
+    return magic4[0] == 'A' && magic4[1] == 'M' && magic4[2] == 'P' && magic4[3] == 'C';
+}
+
 char *data_path(const char *data_root, const char *filename)
 {
     static char buf[512];
     (void)SDL_snprintf(buf, sizeof(buf), "%s/%s", data_root, filename);
     return buf;
 }
+/* Error codes: 0 = success, negative = failure. */
+typedef enum {
+    AMB_OK = 0,
+    AMB_ERR_OPEN_OR_SIZE = -1,
+    AMB_ERR_BAD_MAGIC     = -2,
+    AMB_ERR_NOT_AMBR      = -3,
+    AMB_ERR_OPEN_AMPC     = -4,
+    AMB_ERR_NOT_AMPC      = -5,
+} amb_error_t;
+
+const char *amb_error_str(int code)
+{
+    switch (code) {
+        case AMB_OK:                return "OK";
+        case AMB_ERR_OPEN_OR_SIZE:  return "open or size fail";
+        case AMB_ERR_BAD_MAGIC:     return "bad AMB magic";
+        case AMB_ERR_NOT_AMBR:      return "expected AMBR (AUTOMAP)";
+        case AMB_ERR_OPEN_AMPC:    return "open AMPC file fail";
+        case AMB_ERR_NOT_AMPC:     return "expected AMPC";
+        default:                   return "unknown error";
+    }
+}
+
 /* Result of Load_file or Load_subfile: caller owns ptr (free when done). len is byte count. */
 typedef struct file_res {
     void *ptr;
@@ -466,6 +500,81 @@ t_subfile_res Load_subfile(const char *data_root, const char *filename, int subf
     return (t_subfile_res){ NULL, 0 };  /* TODO: open, read 6-byte header, lengths[], seek, read block */
 }
 
-int main(){
-    return 0;
+/* Print up to `len` bytes from `p` in hex (16 bytes per line). */
+static void hexdump_bytes(const uint8_t *p, size_t len)
+{
+    for (size_t i = 0; i < len; i += 16) {
+        printf("%04zx  ", i);
+        for (size_t j = 0; j < 16 && i + j < len; j++)
+            printf("%02x ", p[i + j]);
+        printf("\n");
+    }
+}
+
+/* Load filename from data_root and hexdump the first header_len bytes. */
+static void hexdump_amb_header(const char *filename, size_t header_len)
+{
+    t_file_res r = Load_file(data_root, filename);
+    if (!r.ptr || r.len < 6) {
+        if (r.ptr)
+            SDL_free(r.ptr);
+        printf("hexdump: could not load %s\n", filename);
+        return;
+    }
+    size_t n = (size_t)header_len;
+    if (n > r.len)
+        n = r.len;
+    printf("--- %s (first %zu bytes) ---\n", filename, n);
+    hexdump_bytes((const uint8_t *)r.ptr, n);
+    SDL_free(r.ptr);
+}
+
+/* Tester: open .AMB files and detect AMBR vs AMPC. Returns 0 on success. */
+static int test_open_amb(void)
+{
+    /* AUTOMAP.AMB is AMBR (unpacked); PICS80.AMB is AMPC (packed). */
+    const char *ambr_file = "AUTOMAP.AMB";
+    const char *ampc_file = "PICS80.AMB";
+
+    t_file_res r = Load_file(data_root, ambr_file);
+    if (!r.ptr || r.len < 6) {
+        if (r.ptr)
+            SDL_free(r.ptr);
+        return AMB_ERR_OPEN_OR_SIZE;
+    }
+    const uint8_t *p = (const uint8_t *)r.ptr;
+    if (!amb_is_ambr(p) && !amb_is_ampc(p)) {
+        SDL_free(r.ptr);
+        return AMB_ERR_BAD_MAGIC;
+    }
+    if (!amb_is_ambr(p)) {
+        SDL_free(r.ptr);
+        return AMB_ERR_NOT_AMBR;
+    }
+    uint16_t n = SDL_Swap16BE(*(const uint16_t *)(p + 4));
+    (void)n;
+    SDL_free(r.ptr);
+
+    r = Load_file(data_root, ampc_file);
+    if (!r.ptr || r.len < 6) {
+        if (r.ptr)
+            SDL_free(r.ptr);
+        return AMB_ERR_OPEN_AMPC;
+    }
+    p = (const uint8_t *)r.ptr;
+    if (!amb_is_ampc(p)) {
+        SDL_free(r.ptr);
+        return AMB_ERR_NOT_AMPC;
+    }
+    SDL_free(r.ptr);
+    return AMB_OK;
+}
+
+int main(void)
+{
+    int res = test_open_amb();
+    printf("%d %s\n", res, amb_error_str(res));
+    hexdump_amb_header("PICS80.AMB", 64);
+    test_open_amb();  /* 6-byte header + first 14 subfile lengths = 62 bytes */
+    return res;
 }
