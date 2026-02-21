@@ -71,3 +71,8 @@ int test_open_amb(void)
     SDL_free(r.ptr);
     return AMB_OK;
 }
+
+void test_memory(){}
+void test_data_loading(){}
+void test_gfx(){} // would need init
+
